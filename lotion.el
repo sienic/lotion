@@ -48,9 +48,11 @@
 
 (defconst lotion-token "I AM A TOKEN")
 (defconst lotion-user "my@mail.to")
+(defconst lotion-token nil "The token to use for accessing Notion.")
 
 (defun lotion-token ()
-  (auth-source-pick-first-password :host "api.notion.com" :user lotion-user))
+  "Get token to query Notion API."
+  (or lotion-token (auth-source-pick-first-password :host "api.notion.com" :user lotion-user)))
 
 (defun lotion-request--get (path &optional data)
   (lotion-request path))
@@ -75,6 +77,19 @@
 ;; (lotion-find--property 'Status '(properties (Status (1 2 3)))) returns (1 2 3)
 (defun lotion-find--property (property-symbol property-list)
   (seq-filter (lambda (elt) (equal (car elt) property-symbol)) (cdr property-list)))
+
+
+(defun alist-get-in (alist symbols)
+  "Navigate an ALIST via SYMBOLS.
+Numbers in SYMBOLS are considered indeces of sequences."
+  (if symbols
+      (if-let ((index (and (numberp (car symbols))
+                           (car symbols))))
+          (alist-get-in (nth index (append alist nil)) (cdr symbols))
+        (alist-get-in (alist-get (car symbols) alist) (cdr symbols)))
+    alist))
+
+(alist-get-in my/data '(properties Name title 0 plain_text)) ; => "Lotion Api client"
 
 ;; Returns the value of a property
 (defun lotion-find-property (property-symbol)
