@@ -71,6 +71,26 @@
       :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
                             (message "Got error: %S" error-thrown))))))
 
+;; Returns the cdr of a list whose car matches the symbol from the cdr of a list e.g
+;; (lotion-find--property 'Status '(properties (Status (1 2 3)))) returns (1 2 3)
+(defun lotion-find--property (property-symbol property-list)
+  (seq-filter (lambda (elt) (equal (car elt) property-symbol)) (cdr property-list)))
+
+;; Returns the value of a property
+(defun lotion-find-property (property-symbol)
+  (let* ((properties (assoc 'properties my/data))
+         (property (lotion-find--property property-symbol properties)))
+    (cdar property)))
+
+(defun lotion-find-title-content ()
+  (cdr (aref (cdr (assoc 'title (lotion-find-property 'Name))) 0)))
+
+(defun lotion-get-title (property-symbol)
+  (let ((plain-text (lotion-find--property property-symbol (lotion-find-title-content))))
+    (cdar plain-text)))
+
+(lotion-get-title 'plain_text)          ; => "Lotion Api client"
+
 ;; (lotion-request "https://api.notion.com/v1/databases/2e574484a5654e928fcdfb413885c605/query" "POST" )
 ;; (lotion-request--get "https://api.notion.com/v1/pages/94876842588d441b8402f46f08e0e030" )
 
