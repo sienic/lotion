@@ -118,20 +118,17 @@ Numbers in SYMBOLS are considered indeces of sequences."
 ;; (alist-get-in my/data '(results 2 heading_2 rich_text 0 plain_text)) ; => "Header 2"
 ;; (alist-get-in my/data '(results 3 paragraph rich_text 0 plain_text)) ; => "Another text"
 
-;; make patch request
-(setq payload-test '(("heading_1" ("rich_text" (("text" ("content" . "PUT Header 1")))))))
-(lotion-blocks--patch "ee245fe3-b41c-4d31-9033-70795fd09ba8" payload-test (lambda (data err) (message "xxxxxxxxx %s" data)))
-
 ;; data models
-(cl-defstruct block id type text)
+(cl-defstruct block id type content-type content)
 (cl-defstruct page id title blocks)
 
 ;; mappers from lotion responses to data models
 (defun parse-block (data)
   (let* ((id (alist-get-in data '(id)))
          (type (intern (alist-get-in data '(type))))
-         (text (alist-get-in data `(,type rich_text 0 plain_text))))
-    (make-block :id id :type type :text text)))
+         (content-type (alist-get-in data `(,type rich_text 0 type)))
+         (content (alist-get-in data `(,type rich_text 0 ,content-type content))))
+    (make-block :id id :type type :content-type content-type :content content)))
 
 (defun parse-blocks (data)
   (let ((blocks (alist-get-in data '(results))))
@@ -155,7 +152,7 @@ Numbers in SYMBOLS are considered indeces of sequences."
 (defun block-to-org (block)
   (string-join
    (remq nil `(,(block-heading (block-type block))
-               ,(block-text block)))
+               ,(block-content block)))
    " "))
 
 (defun page-to-org (page)
@@ -188,6 +185,20 @@ Numbers in SYMBOLS are considered indeces of sequences."
 
 ;; fetch and store content in *lotion* buffer
 (lotion-page "201392c852284d7c8020d2d6421a9e58")
+
+;; updating notion from a model
+(setq block-to-update
+      (make-block :id "ee245fe3-b41c-4d31-9033-70795fd09ba8"
+                  :type "heading_1"
+                  :content-type "text"
+                  :content "New text"))
+(defun block-to-payload (block)
+  `((,(block-type block) ("rich_text" ((,(block-content-type block) ("content" . ,(block-content block))))))))
+
+(lotion-blocks--patch
+ "ee245fe3-b41c-4d31-9033-70795fd09ba8"
+ (block-to-payload block-to-update)
+ (lambda (data err) (message "xxxxxxxxx %s" data)))
 
 (provide 'lotion)
 ;;; lotion.el ends here
