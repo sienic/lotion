@@ -127,15 +127,15 @@ Numbers in SYMBOLS are considered indeces of sequences."
 ;; (parse-page page-data blocks-data)
 
 ;; view functions
-(setq types '((heading_1 . "**") (heading_2 . "***") (paragraph . "")))
+(setq types-prefix '((heading_1 . "**") (heading_2 . "***") (paragraph . nil)))
 
 (defun block-heading (type)
-  (cdr (assoc type types)))
+  (cdr (assoc type types-prefix)))
 
 (defun block-to-org (block)
   (string-join
-   `(,(block-heading (block-type block))
-     ,(block-text block))
+   (remq nil `(,(block-heading (block-type block))
+               ,(block-text block)))
    " "))
 
 (defun page-to-org (page)
