@@ -44,6 +44,7 @@
   :type 'directory
   :group 'lotion)
 
+;; Code related to lotion api
 (defconst lotion-default-host "api.notion.com")
 
 (defconst lotion-token "I AM A TOKEN")
@@ -80,9 +81,6 @@
 (defun lotion-blocks--fetch (uuid &optional callback)
   (lotion-request--get (format "/v1/blocks/%s/children" uuid) callback))
 
-(lotion-page--fetch "201392c852284d7c8020d2d6421a9e58")
-(lotion-blocks--fetch "201392c852284d7c8020d2d6421a9e58")
-
 (defun alist-get-in (alist symbols)
   "Navigate an ALIST via SYMBOLS.
 Numbers in SYMBOLS are considered indeces of sequences."
@@ -93,26 +91,61 @@ Numbers in SYMBOLS are considered indeces of sequences."
         (alist-get-in (alist-get (car symbols) alist) (cdr symbols)))
     alist))
 
-(alist-keys (alist-get-in my/data '(results 1 ))) ; => "Lotion Api client"
+;; example data
+(setq page-data nil)
+(setq blocks-data nil)
 
-;; from page
-;; (alist-get-in my/data '(properties Name title 0 plain_text)) ; => "Lotion Api client"
-;; from blocks
+(lotion-page--fetch "201392c852284d7c8020d2d6421a9e58" (lambda (data) (setq page-data data)))
+;; (alist-get-in page-data '(properties Name title 0 plain_text)) ; => "Getting a normal card with simple text nodes"
+(lotion-blocks--fetch "201392c852284d7c8020d2d6421a9e58" (lambda (data) (setq blocks-data data)))
 ;; (alist-get-in my/data '(results 0 heading_1 rich_text 0 plain_text)) ; => "Header 1"
-;; (alist-get-in my/data '(results 1 paragraph rich_text 0 plain_text)) ; => "Text" ;
+;; (alist-get-in my/data '(results 1 paragraph rich_text 0 plain_text)) ; => "Text"
 ;; (alist-get-in my/data '(results 2 heading_2 rich_text 0 plain_text)) ; => "Header 2"
 ;; (alist-get-in my/data '(results 3 paragraph rich_text 0 plain_text)) ; => "Another text"
 
-(setq types '(heading_1 heading_2 paragraph))
 
-(cl-defstruct block type content)
+;; data models
+(cl-defstruct block type text)
 (cl-defstruct page title blocks)
 
-(defun parse-page (response)
-  (make-page :title (alist-get-in response '(properties Name title 0 plain_text))))
+;; mappers from lotion responses to data models
+(defun parse-block (data)
+  (let* ((type (intern (alist-get-in data '(type))))
+         (text (alist-get-in data `(,type rich_text 0 plain_text))))
+    (make-block :type type :text text)))
 
+(defun parse-blocks (data)
+  (let ((blocks (alist-get-in data '(results))))
+    (mapcar #'parse-block blocks)))
+
+;; (parse-blocks blocks-data)
+
+(defun parse-page (page-data blocks-data)
+  (make-page :title (alist-get-in page-data '(properties Name title 0 plain_text))
+             :blocks (parse-blocks blocks-data)))
+
+;; (parse-page page-data blocks-data)
+
+;; view functions
+(setq types '((heading_1 . "**") (heading_2 . "***") (paragraph . "")))
+
+(defun block-heading (type)
+  (cdr (assoc type types)))
+
+(defun block-to-org (block)
+  (string-join
+   `(,(block-heading (block-type block))
+     ,(block-text block))
+   " "))
+
+(defun page-to-org (page)
+  (string-join
+   `(,(string-join `("*" ,(page-title page)) " ")
+     ,@(mapcar #'block-to-org (page-blocks page))) "\n"))
+
+;; rendering functions
 (defun render-page (page)
-  (lotion-write-into-buffer (string-join `("*" ,(page-title page)) " ")))
+  (lotion-write-into-buffer (page-to-org page)))
 
 (defun lotion-write-into-buffer (header)
   (save-excursion
@@ -121,13 +154,17 @@ Numbers in SYMBOLS are considered indeces of sequences."
         (org-mode)
         (insert header)))))
 
+;; function to dispatch retrieval and rendering
 (defun lotion-page (uuid)
   (let ((page nil))
     (message "executing")
     (lotion-page--fetch
      uuid
-     (lambda (page)
-       (render-page (parse-page page))))))
+     (lambda (page-data)
+       (lotion-blocks--fetch
+        uuid
+        (lambda (blocks-data)
+          (render-page (parse-page page-data blocks-data))))))))
 
 ;; fetch and store content in *lotion* buffer
 (lotion-page "201392c852284d7c8020d2d6421a9e58")
