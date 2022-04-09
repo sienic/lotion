@@ -126,7 +126,7 @@ Numbers in SYMBOLS are considered indeces of sequences."
 (defun parse-block (data)
   (let* ((id (alist-get-in data '(id)))
          (type (intern (alist-get-in data '(type))))
-         (content-type (alist-get-in data `(,type rich_text 0 type)))
+         (content-type (intern (alist-get-in data `(,type rich_text 0 type))))
          (content (alist-get-in data `(,type rich_text 0 ,content-type content))))
     (make-block :id id :type type :content-type content-type :content content)))
 
