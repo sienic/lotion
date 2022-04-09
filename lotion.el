@@ -105,14 +105,15 @@ Numbers in SYMBOLS are considered indeces of sequences."
 
 
 ;; data models
-(cl-defstruct block type text)
-(cl-defstruct page title blocks)
+(cl-defstruct block id type text)
+(cl-defstruct page id title blocks)
 
 ;; mappers from lotion responses to data models
 (defun parse-block (data)
-  (let* ((type (intern (alist-get-in data '(type))))
+  (let* ((id (alist-get-in data '(id)))
+         (type (intern (alist-get-in data '(type))))
          (text (alist-get-in data `(,type rich_text 0 plain_text))))
-    (make-block :type type :text text)))
+    (make-block :id id :type type :text text)))
 
 (defun parse-blocks (data)
   (let ((blocks (alist-get-in data '(results))))
@@ -121,7 +122,8 @@ Numbers in SYMBOLS are considered indeces of sequences."
 ;; (parse-blocks blocks-data)
 
 (defun parse-page (page-data blocks-data)
-  (make-page :title (alist-get-in page-data '(properties Name title 0 plain_text))
+  (make-page :id (alist-get-in page-data '(id))
+             :title (alist-get-in page-data '(properties Name title 0 plain_text))
              :blocks (parse-blocks blocks-data)))
 
 ;; (parse-page page-data blocks-data)
