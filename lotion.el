@@ -44,7 +44,7 @@
   :type 'directory
   :group 'lotion)
 
-;; Code related to lotion api
+;; Code related to notion api
 (defconst lotion-default-host "api.notion.com")
 
 (defconst lotion-token "I AM A TOKEN")
@@ -55,31 +55,46 @@
   "Get token to query Notion API."
   (or lotion-token (auth-source-pick-first-password :host lotion-default-host :user lotion-user)))
 
-(defun lotion-request (path &optional request-method callback)
+(cl-defun lotion-request (&key path method callback payload headers)
   "Performs a request to notion"
-  (let ((type (or request-method "GET")))
+  (let ((type (or method "GET")))
     (request (concat "https://" lotion-default-host path)
       :type type
       :parser 'json-read
-      :data '(("page_size" . 100))
-      :headers `(("Notion-Version" . "2022-02-22")
-                 ("Authorization" . ,(concat "Bearer " (lotion-token))))
+      :data payload
+      :headers (append headers `(("Notion-Version" . "2022-02-22")
+                                 ("Authorization" . ,(concat "Bearer " (lotion-token)))))
       :success (cl-function
                 (lambda (&key data &allow-other-keys)
-                  (if callback (funcall callback data))
+                  (if callback (funcall callback data nil))
                   (setq my/data data)))
       :error (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
-                            (if callback (funcall callback nil data))
+                            (if callback (funcall callback nil error-thrown))
                             (message "Got error: %S" error-thrown))))))
 
 (defun lotion-request--get (path &optional callback)
-  (lotion-request path "GET" callback))
+  (lotion-request
+   :path path
+   :callback callback
+   :payload '(("page_size . 100"))))
 
+(defun lotion-request--patch (path payload &optional callback)
+  (lotion-request
+   :path path
+   :method "PATCH"
+   :callback callback
+   :payload (json-encode payload)
+   :headers '(("Content-Type" . "application/json"))))
+
+;; api resources
 (defun lotion-page--fetch (uuid &optional callback)
   (lotion-request--get (format "/v1/pages/%s" uuid) callback))
 
 (defun lotion-blocks--fetch (uuid &optional callback)
   (lotion-request--get (format "/v1/blocks/%s/children" uuid) callback))
+
+(defun lotion-blocks--patch (uuid payload &optional callback)
+  (lotion-request--patch (format "/v1/blocks/%s" uuid) payload callback))
 
 (defun alist-get-in (alist symbols)
   "Navigate an ALIST via SYMBOLS.
@@ -94,15 +109,18 @@ Numbers in SYMBOLS are considered indeces of sequences."
 ;; example data
 (setq page-data nil)
 (setq blocks-data nil)
-
-(lotion-page--fetch "201392c852284d7c8020d2d6421a9e58" (lambda (data) (setq page-data data)))
+;; blocks-data ; => ((object . "list") (results . [((object . "block") (id . "ee245fe3-b41c-4d31-9033-70795fd09ba8") (created_time . "2022-04-07T17:50:00.000Z") (last_edited_time . "2022-04-07T17:50:00.000Z") (created_by (object . "user") (id . "e8fb2099-0bfe-41e9-a688-9e9ca053464d")) (last_edited_by (object . "user") (id . "e8fb2099-0bfe-41e9-a688-9e9ca053464d")) (has_children . :json-false) (archived . :json-false) (type . "heading_1") (heading_1 (rich_text . [((type . "text") (text (content . "Header 1") (link)) (annotations (bold . :json-false) (italic . :json-false) (strikethrough . :json-false) (underline . :json-false) (code . :json-false) (color . "default")) (plain_text . "Header 1") (href))]) (color . "default"))) ((object . "block") (id . "18ceecee-ecd0-48e2-95d3-21dd9742ea9d") (created_time . "2022-04-07T17:50:00.000Z") (last_edited_time . "2022-04-07T17:50:00.000Z") (created_by (object . "user") (id . "e8fb2099-0bfe-41e9-a688-9e9ca053464d")) (last_edited_by (object . "user") (id . "e8fb2099-0bfe-41e9-a688-9e9ca053464d")) (has_children . :json-false) (archived . :json-false) (type . "paragraph") (paragraph (rich_text . [((type . "text") (text (content . "Text") (link)) (annotations (bold . :json-false) (italic . :json-false) (strikethrough . :json-false) (underline . :json-false) (code . :json-false) (color . "default")) (plain_text . "Text") (href))]) (color . "default"))) ((object . "block") (id . "d695bcf2-2124-413d-9f15-b01144040e3a") (created_time . "2022-04-07T17:50:00.000Z") (last_edited_time . "2022-04-07T17:50:00.000Z") (created_by (object . "user") (id . "e8fb2099-0bfe-41e9-a688-9e9ca053464d")) (last_edited_by (object . "user") (id . "e8fb2099-0bfe-41e9-a688-9e9ca053464d")) (has_children . :json-false) (archived . :json-false) (type . "heading_2") (heading_2 (rich_text . [((type . "text") (text (content . "Header 2") (link)) (annotations (bold . :json-false) (italic . :json-false) (strikethrough . :json-false) (underline . :json-false) (code . :json-false) (color . "default")) (plain_text . "Header 2") (href))]) (color . "default"))) ((object . "block") (id . "d7e66203-049b-4dd6-ad3d-76076ba35b47") (created_time . "2022-04-07T17:50:00.000Z") (last_edited_time . "2022-04-07T17:50:00.000Z") (created_by (object . "user") (id . "e8fb2099-0bfe-41e9-a688-9e9ca053464d")) (last_edited_by (object . "user") (id . "e8fb2099-0bfe-41e9-a688-9e9ca053464d")) (has_children . :json-false) (archived . :json-false) (type . "paragraph") (paragraph (rich_text . [((type . "text") (text (content . "Another text") (link)) (annotations (bold . :json-false) (italic . :json-false) (strikethrough . :json-false) (underline . :json-false) (code . :json-false) (color . "default")) (plain_text . "Another text") (href))]) (color . "default")))]) (next_cursor) (has_more . :json-false) (type . "block") (block))
+(lotion-page--fetch "201392c852284d7c8020d2d6421a9e58" (lambda (data err) (setq page-data data)))
 ;; (alist-get-in page-data '(properties Name title 0 plain_text)) ; => "Getting a normal card with simple text nodes"
-(lotion-blocks--fetch "201392c852284d7c8020d2d6421a9e58" (lambda (data) (setq blocks-data data)))
+(lotion-blocks--fetch "201392c852284d7c8020d2d6421a9e58" (lambda (data err) (setq blocks-data data)))
 ;; (alist-get-in my/data '(results 0 heading_1 rich_text 0 plain_text)) ; => "Header 1"
 ;; (alist-get-in my/data '(results 1 paragraph rich_text 0 plain_text)) ; => "Text"
 ;; (alist-get-in my/data '(results 2 heading_2 rich_text 0 plain_text)) ; => "Header 2"
 ;; (alist-get-in my/data '(results 3 paragraph rich_text 0 plain_text)) ; => "Another text"
 
+;; make patch request
+(setq payload-test '(("heading_1" ("rich_text" (("text" ("content" . "PUT Header 1")))))))
+(lotion-blocks--patch "ee245fe3-b41c-4d31-9033-70795fd09ba8" payload-test (lambda (data err) (message "xxxxxxxxx %s" data)))
 
 ;; data models
 (cl-defstruct block id type text)
@@ -162,10 +180,10 @@ Numbers in SYMBOLS are considered indeces of sequences."
     (message "executing")
     (lotion-page--fetch
      uuid
-     (lambda (page-data)
+     (lambda (page-data err)
        (lotion-blocks--fetch
         uuid
-        (lambda (blocks-data)
+        (lambda (blocks-data err)
           (render-page (parse-page page-data blocks-data))))))))
 
 ;; fetch and store content in *lotion* buffer
